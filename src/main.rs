@@ -1,18 +1,15 @@
-mod app;
-mod cli;
-mod qmk;
-mod terminal;
-mod ui;
-
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
 use anyhow::Result;
-use app::{App, AppCommand, WorkerMessage};
 use clap::Parser;
 use crossterm::event::{self, Event, KeyEventKind};
-use qmk::QmkRunner;
+use qmk_tui::app::{App, AppCommand, WorkerMessage};
+use qmk_tui::cli;
+use qmk_tui::qmk::QmkRunner;
+use qmk_tui::terminal;
+use qmk_tui::ui;
 
 fn main() -> Result<()> {
     let cli = cli::Cli::parse();
