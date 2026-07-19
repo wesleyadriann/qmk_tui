@@ -47,3 +47,7 @@ Keyboard shortcuts:
 - `ui.rs`: Ratatui rendering only.
 - `terminal.rs`: Crossterm/Ratatui terminal lifecycle.
 - `cli.rs`: startup arguments with Clap.
+
+## Preview
+
+![Preview](./assets/preview.png)
