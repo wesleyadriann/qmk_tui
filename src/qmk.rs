@@ -24,6 +24,7 @@ impl QmkAction {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum KeyboardSource {
     Userspace,
+    Overlay,
     QmkRepo,
 }
 
@@ -31,6 +32,7 @@ impl KeyboardSource {
     pub fn label(self) -> &'static str {
         match self {
             Self::Userspace => "Userspace",
+            Self::Overlay => "Overlay",
             Self::QmkRepo => "QMK repo",
         }
     }
@@ -166,11 +168,25 @@ pub fn discover_keyboards(qmk_home: &Path) -> Result<Vec<Keyboard>, QmkError> {
         return Err(QmkError::InvalidQmkHome(qmk_home.to_path_buf()));
     }
 
+    let mut all_keyboards = Vec::new();
+
     let mut userspace_keyboards = Vec::new();
     for root in userspace_keyboard_roots(qmk_home) {
         collect_keyboard_dirs(&root, KeyboardSource::Userspace, &mut userspace_keyboards)?;
     }
     sort_and_dedup(&mut userspace_keyboards);
+    all_keyboards.extend(userspace_keyboards);
+
+    let mut overlay_keyboards = Vec::new();
+    if let Some(overlay_dir) = get_overlay_dir() {
+        collect_keyboard_dirs(
+            &overlay_dir.join("keyboards"),
+            KeyboardSource::Overlay,
+            &mut overlay_keyboards,
+        )?;
+        sort_and_dedup(&mut overlay_keyboards);
+    }
+    all_keyboards.extend(overlay_keyboards);
 
     let mut repo_keyboards = Vec::new();
     collect_keyboard_dirs(
@@ -179,9 +195,9 @@ pub fn discover_keyboards(qmk_home: &Path) -> Result<Vec<Keyboard>, QmkError> {
         &mut repo_keyboards,
     )?;
     sort_and_dedup(&mut repo_keyboards);
+    all_keyboards.extend(repo_keyboards);
 
-    userspace_keyboards.extend(repo_keyboards);
-    Ok(userspace_keyboards)
+    Ok(all_keyboards)
 }
 
 pub fn parse_qmk_home(input: &str) -> Option<PathBuf> {
@@ -198,6 +214,31 @@ pub fn default_qmk_home() -> Option<PathBuf> {
         .map(PathBuf::from)
         .map(|home| home.join("qmk_firmware"))
         .filter(|path| path.is_dir())
+}
+
+pub fn parse_overlay_dir(stdout: &str) -> Option<PathBuf> {
+    for line in stdout.lines() {
+        if let Some(rest) = line.strip_prefix("user.overlay_dir=") {
+            let path_str = rest.trim_end_matches(" (config)");
+            let trimmed = path_str.trim();
+            if !trimmed.is_empty() {
+                return Some(expand_tilde(trimmed));
+            }
+        }
+    }
+    None
+}
+
+fn get_overlay_dir() -> Option<PathBuf> {
+    let mut command = Command::new("qmk");
+    command.args(["config", "user.overlay_dir"]);
+    let output = command.output().ok()?;
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        parse_overlay_dir(&stdout)
+    } else {
+        None
+    }
 }
 
 fn userspace_keyboard_roots(qmk_home: &Path) -> Vec<PathBuf> {
@@ -264,7 +305,13 @@ fn child_dirs(path: &Path) -> Result<Vec<PathBuf>, QmkError> {
 }
 
 fn is_keyboard_dir(path: &Path) -> bool {
-    path.join("keyboard.json").is_file() || path.join("info.json").is_file()
+    // Modern QMK keyboards generally have keyboard.json/info.json. Legacy
+    // keyboards and userspace overlays may only provide keymaps/ (with the
+    // actual keyboard definition coming from qmk_firmware), so recognize
+    // those directories as well.
+    path.join("keyboard.json").is_file()
+        || path.join("info.json").is_file()
+        || path.join("keymaps").is_dir()
 }
 
 fn keyboard_name(root: &Path, path: &Path) -> Option<String> {
@@ -301,5 +348,4 @@ fn expand_tilde(path: &str) -> PathBuf {
 
     PathBuf::from(path)
 }
-
 

@@ -5,8 +5,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use qmk_tui::qmk::{
     Keyboard, KeyboardSource, QmkAction, QmkError, QmkRequest, build_qmk_args,
-    discover_keyboards,
+    discover_keyboards, parse_overlay_dir,
 };
+
+#[test]
+fn parses_overlay_dir_with_suffix() {
+    let stdout = "user.overlay_dir=/home/wesley/dev/qmk_userspace (config)";
+    let expected = PathBuf::from("/home/wesley/dev/qmk_userspace");
+    assert_eq!(parse_overlay_dir(stdout), Some(expected));
+}
+
+#[test]
+fn parses_overlay_dir_without_suffix() {
+    let stdout = "user.overlay_dir=/home/wesley/dev/qmk_userspace";
+    let expected = PathBuf::from("/home/wesley/dev/qmk_userspace");
+    assert_eq!(parse_overlay_dir(stdout), Some(expected));
+}
 
 #[test]
 fn builds_compile_args() {
@@ -47,7 +61,11 @@ fn discovers_userspace_keyboards_before_repo_keyboards() {
     .unwrap();
     fs::write(qmk_home.join("keyboards/planck/rev6/keyboard.json"), "{}").unwrap();
 
-    let keyboards = discover_keyboards(&qmk_home).unwrap();
+    let keyboards = discover_keyboards(&qmk_home)
+        .unwrap()
+        .into_iter()
+        .filter(|keyboard| keyboard.source != KeyboardSource::Overlay)
+        .collect::<Vec<_>>();
 
     assert_eq!(
         keyboards,
@@ -61,6 +79,30 @@ fn discovers_userspace_keyboards_before_repo_keyboards() {
                 source: KeyboardSource::QmkRepo,
             },
         ]
+    );
+
+    fs::remove_dir_all(qmk_home).unwrap();
+}
+
+#[test]
+fn discovers_legacy_userspace_keyboards_with_only_keymaps() {
+    let qmk_home = test_qmk_home();
+    fs::create_dir_all(qmk_home.join("keyboards")).unwrap();
+    fs::create_dir_all(qmk_home.join("users/wes/keyboards/crkbd/rev1/keymaps/wes"))
+        .unwrap();
+
+    let keyboards = discover_keyboards(&qmk_home)
+        .unwrap()
+        .into_iter()
+        .filter(|keyboard| keyboard.source != KeyboardSource::Overlay)
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        keyboards,
+        vec![Keyboard {
+            name: String::from("crkbd/rev1"),
+            source: KeyboardSource::Userspace,
+        }]
     );
 
     fs::remove_dir_all(qmk_home).unwrap();

@@ -112,6 +112,7 @@ fn keyboard_list_item(row: &KeyboardListRow) -> ListItem<'_> {
         KeyboardListRow::Keyboard(keyboard) => {
             let source_style = match keyboard.source {
                 KeyboardSource::Userspace => Style::default().fg(Color::Cyan),
+                KeyboardSource::Overlay => Style::default().fg(Color::Magenta),
                 KeyboardSource::QmkRepo => Style::default().fg(Color::DarkGray),
             };
 

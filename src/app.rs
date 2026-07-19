@@ -567,6 +567,12 @@ pub fn keyboard_rows_from(keyboards: Vec<Keyboard>) -> Vec<KeyboardListRow> {
         &keyboards,
         KeyboardSource::Userspace,
     );
+    push_keyboard_group(
+        &mut rows,
+        "Overlay",
+        &keyboards,
+        KeyboardSource::Overlay,
+    );
     push_keyboard_group(&mut rows, "QMK repo", &keyboards, KeyboardSource::QmkRepo);
     rows
 }
